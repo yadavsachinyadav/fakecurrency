@@ -1,64 +1,80 @@
 # app.py
-# Fake Currency Detection using GAN/CNN Model
-# Streamlit Ready Full Code
+# Streamlit Cloud Optimized Fake Currency Detection
 
 import streamlit as st
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import model_from_json
 from PIL import Image
 import cv2
 import os
 
-# ---------------------------------------------------
+# -------------------------------
 # PAGE CONFIG
-# ---------------------------------------------------
+# -------------------------------
 st.set_page_config(
     page_title="Fake Currency Detection",
     page_icon="💵",
     layout="wide"
 )
 
-# ---------------------------------------------------
-# STYLE
-# ---------------------------------------------------
+# -------------------------------
+# SAFE TENSORFLOW IMPORT
+# -------------------------------
+try:
+    import tensorflow as tf
+    from tensorflow.keras.models import model_from_json
+except Exception as e:
+    st.error("TensorFlow not installed correctly.")
+    st.stop()
+
+# -------------------------------
+# CUSTOM CSS
+# -------------------------------
 st.markdown("""
 <style>
 .title{
-    font-size:42px;
-    font-weight:bold;
-    text-align:center;
-    color:#0b5394;
+font-size:42px;
+font-weight:bold;
+text-align:center;
+color:#0b5394;
 }
 .sub{
-    text-align:center;
-    color:gray;
+text-align:center;
+color:gray;
+font-size:18px;
 }
 .result{
-    font-size:28px;
-    font-weight:bold;
+font-size:28px;
+font-weight:bold;
 }
 .footer{
-    text-align:center;
-    color:gray;
+text-align:center;
+color:gray;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------
+# -------------------------------
 # TITLE
-# ---------------------------------------------------
-st.markdown('<p class="title">💵 Fake Currency Detection System</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub">Upload Currency Note Image to Detect Genuine or Fake</p>', unsafe_allow_html=True)
+# -------------------------------
+st.markdown('<p class="title">💵 Fake Currency Detection</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub">Upload Note Image to Check Real or Fake</p>', unsafe_allow_html=True)
 
-# ---------------------------------------------------
-# LOAD MODEL
-# ---------------------------------------------------
+# -------------------------------
+# MODEL LOAD
+# -------------------------------
 @st.cache_resource
 def load_model():
     try:
-        with open("model_vgg.json", "r") as file:
-            model_json = file.read()
+        if not os.path.exists("model_vgg.json"):
+            st.error("model_vgg.json file missing")
+            return None
+
+        if not os.path.exists("model_vgg.weights.h5"):
+            st.error("model_vgg.weights.h5 file missing")
+            return None
+
+        with open("model_vgg.json", "r") as f:
+            model_json = f.read()
 
         model = model_from_json(model_json)
         model.load_weights("model_vgg.weights.h5")
@@ -66,25 +82,25 @@ def load_model():
         return model
 
     except Exception as e:
-        st.error(f"Model Load Error: {e}")
+        st.error(f"Model Loading Error: {e}")
         return None
 
 model = load_model()
 
-# ---------------------------------------------------
-# CLASS LABELS
-# ---------------------------------------------------
+# -------------------------------
+# LABELS
+# -------------------------------
 classes = {
     0: "Fake Currency",
     1: "Real Currency"
 }
 
-# ---------------------------------------------------
-# IMAGE PREPROCESS
-# ---------------------------------------------------
+# -------------------------------
+# IMAGE PROCESSING
+# -------------------------------
 def preprocess(img):
 
-    img = img.resize((224,224))
+    img = img.resize((224, 224))
     img = np.array(img)
 
     if len(img.shape) == 2:
@@ -98,45 +114,39 @@ def preprocess(img):
 
     return img
 
-# ---------------------------------------------------
-# PREDICT
-# ---------------------------------------------------
+# -------------------------------
+# PREDICTION
+# -------------------------------
 def predict(img):
 
     processed = preprocess(img)
 
-    pred = model.predict(processed)
+    pred = model.predict(processed, verbose=0)
 
     class_index = np.argmax(pred)
-    confidence = float(np.max(pred)) * 100
+    confidence = np.max(pred) * 100
 
-    label = classes[class_index]
+    return classes[class_index], confidence, pred[0]
 
-    return label, confidence, pred[0]
-
-# ---------------------------------------------------
+# -------------------------------
 # SIDEBAR
-# ---------------------------------------------------
-st.sidebar.header("📌 Instructions")
-st.sidebar.write("1. Upload currency image")
+# -------------------------------
+st.sidebar.header("Instructions")
+st.sidebar.write("1. Upload note image")
 st.sidebar.write("2. Click Detect")
-st.sidebar.write("3. View result")
+st.sidebar.write("3. See Result")
 
-st.sidebar.markdown("---")
-st.sidebar.write("Supported Format:")
-st.sidebar.write("JPG, JPEG, PNG")
-
-# ---------------------------------------------------
-# FILE UPLOAD
-# ---------------------------------------------------
+# -------------------------------
+# FILE UPLOADER
+# -------------------------------
 uploaded_file = st.file_uploader(
-    "Upload Currency Note Image",
-    type=["jpg","jpeg","png"]
+    "Upload Currency Image",
+    type=["jpg", "jpeg", "png"]
 )
 
-# ---------------------------------------------------
+# -------------------------------
 # MAIN
-# ---------------------------------------------------
+# -------------------------------
 if uploaded_file is not None:
 
     image = Image.open(uploaded_file)
@@ -144,38 +154,40 @@ if uploaded_file is not None:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.image(image, caption="Uploaded Currency Note", use_container_width=True)
+        st.image(image, caption="Uploaded Note", use_container_width=True)
 
     with col2:
 
         if st.button("🔍 Detect Currency"):
 
             if model is None:
-                st.error("Model not loaded")
-
+                st.error("Model not loaded.")
             else:
-                with st.spinner("Analyzing Currency Note..."):
+                with st.spinner("Checking Note..."):
 
                     label, confidence, probs = predict(image)
 
                 if label == "Real Currency":
-                    st.success(f"✅ Prediction: {label}")
+                    st.success(f"✅ {label}")
                 else:
-                    st.error(f"❌ Prediction: {label}")
+                    st.error(f"❌ {label}")
 
                 st.info(f"Confidence: {confidence:.2f}%")
 
                 st.subheader("Prediction Score")
 
-                chart_data = {
+                chart = {
                     "Fake": float(probs[0]),
                     "Real": float(probs[1])
                 }
 
-                st.bar_chart(chart_data)
+                st.bar_chart(chart)
 
-# ---------------------------------------------------
+# -------------------------------
 # FOOTER
-# ---------------------------------------------------
+# -------------------------------
 st.markdown("---")
-st.markdown('<p class="footer">Developed using Streamlit + Deep Learning</p>', unsafe_allow_html=True)
+st.markdown(
+    '<p class="footer">Developed with Streamlit + TensorFlow</p>',
+    unsafe_allow_html=True
+)
